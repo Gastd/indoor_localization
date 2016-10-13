@@ -1,4 +1,4 @@
-#include "indoor_localization/ar_pose_interface.h"
+#include "indoor_localization/ar_process_input.h"
 #include <cstdlib>
 
 int main (int argc, char **argv)

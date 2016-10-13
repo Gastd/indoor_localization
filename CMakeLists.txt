@@ -38,10 +38,10 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(ar_pose_interface_node src/ar_pose_interface.cpp src/ar_map.cpp)
+add_executable(ar_process_input_node src/ar_process_input.cpp src/ar_map.cpp)
 add_executable(ekf_localization_node src/ekf_localization_node.cpp src/ekf.cpp)
 
-target_link_libraries(ar_pose_interface_node
+target_link_libraries(ar_process_input_node
   ${catkin_LIBRARIES}
 )
 
