@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
+add_definitions(-std=c++11 -g)
+
 find_package(Eigen3)
 if(NOT EIGEN3_FOUND)
   # Fallback to cmake_modules
@@ -37,7 +39,12 @@ include_directories(
 )
 
 add_executable(ar_pose_interface_node src/ar_pose_interface.cpp src/ar_map.cpp)
+add_executable(ekf_localization_node src/ekf_localization_node.cpp src/ekf.cpp)
 
 target_link_libraries(ar_pose_interface_node
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(ekf_localization_node
   ${catkin_LIBRARIES}
 )

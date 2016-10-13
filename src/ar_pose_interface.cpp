@@ -45,7 +45,6 @@ void ARPoseInterface::arPoseCallback(const geometry_msgs::PoseWithCovarianceStam
                                            camPose->pose.pose.orientation.w));
     tf::Quaternion rotation_camera;
     markerToCam = camToMarker.inverse();
-    // rotation_camera.setRPY(0., 0., -M_PI/2); // rotation of camera optical frame
     rotation_camera.setRPY(0., 0., 0.); // rotation of camera optical frame
     rotation_camera = markerToCam*rotation_camera;
     markerToCam.setRotation(rotation_camera.normalized());
@@ -55,10 +54,10 @@ void ARPoseInterface::arPoseCallback(const geometry_msgs::PoseWithCovarianceStam
     std::string id_str = camPose->header.frame_id;
     std::size_t found = id_str.find('_');
     int measurement_id = atoi(id_str.substr(found+1).c_str());
-    ROS_INFO_STREAM("id " << camPose->header.frame_id << " measurement_id " << measurement_id);
+    // ROS_INFO_STREAM("id " << camPose->header.frame_id << " measurement_id " << measurement_id);
 
     std::vector<double> m = map_.get(measurement_id-1);
-    ROS_INFO_STREAM("mx = " << m.at(0) << " my = " << m.at(1));
+    // ROS_INFO_STREAM("mx = " << m.at(0) << " my = " << m.at(1));
     tf::Transform mapToMarker;
     tf::Quaternion rotationTag;
     mapToMarker.setOrigin(tf::Vector3(m.at(0), m.at(1), 2.91));
@@ -83,16 +82,16 @@ void ARPoseInterface::arPoseCallback(const geometry_msgs::PoseWithCovarianceStam
     tf::Transform mapToBase = baseToCamStamped_ * mapToCam.inverse();
     // tf::Transform baseToMarker = baseToCamStamped_ * camToMarker;
     tf::Transform baseToMap = mapToBase.inverse();
-    ROS_INFO_STREAM("YAW CAMERA  " << yaw << " YAW MAP " << tf::getYaw(mapToBase.getRotation()));
+    // ROS_INFO_STREAM("YAW CAMERA  " << yaw << " YAW MAP " << tf::getYaw(mapToBase.getRotation()));
     ros::Time ts = ros::Time::now();
     ros::Duration transform_tolerance(0.2);
-    tf::poseTFToMsg(mapToBase, robotPose_.pose.pose);
+    tf::poseTFToMsg(baseToMap, robotPose_.pose.pose);
     tf::StampedTransform mapToBaseTFStamp(mapToBase, ts+transform_tolerance, "base_link", "map");
 
     robotPose_.header.frame_id = "map";
     robotPose_.header.stamp = ros::Time::now();
-    ROS_INFO_STREAM("ROBOT POSE: " << robotPose_.pose.pose);
-    broadcaster_.sendTransform(mapToBaseTFStamp);
+    // ROS_INFO_STREAM("ROBOT POSE: " << robotPose_.pose.pose);
+    // broadcaster_.sendTransform(mapToBaseTFStamp);
 
     pub_.publish(robotPose_);
 }
