@@ -24,7 +24,7 @@ else()
   set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
 endif()
 # Use ${EIGEN3_...} variables in either case below
-include_directories(${EIGEN_INCLUDE_DIR})
+include_directories(${EIGEN3_INCLUDE_DIRS})
 
 catkin_package(
  INCLUDE_DIRS include

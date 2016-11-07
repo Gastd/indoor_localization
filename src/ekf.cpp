@@ -225,7 +225,7 @@ void EKF::publishData()
 {
     geometry_msgs::PoseWithCovarianceStamped odom;
     odom.header.stamp = ros::Time::now();
-    odom.header.frame_id = "odom";
+    odom.header.frame_id = "map";
     // odom.child_frame_id = "base_link";
     
     odom.pose.pose.position.x = state_(0);
@@ -243,16 +243,33 @@ void EKF::publishData()
     odom.pose.covariance[31] = cov_state_(7); // y yaw
     odom.pose.covariance[35] = cov_state_(8); // yaw yaw
 
-    odom_filter_pub_.publish(odom);
 
-    // odom.twist.twist.linear.x = 1;
-    // odom.twist.twist.angular.z = 0;
-    // odom.twist.covariance[0]  = 100;
-    // odom.twist.covariance[7]  = 100;
-    // odom.twist.covariance[14] = 100;
-    // odom.twist.covariance[21] = 100;
-    // odom.twist.covariance[28] = 100;
-    // odom.twist.covariance[35] = 100;
+    // The localization node should send map_frame to odom_frame transform,
+    // the odom_frame to base_frame is send by p2os_driver, this node estimate
+    // the transform between map_frame and base_frame, which has been find above
+    tf::Transform base_to_map;
+    tf::StampedTransform base_to_odom;
+    tf::Quaternion rotation;
+
+    try
+    {
+        listener_.lookupTransform("odom", "base_link", ros::Time(0), base_to_odom);
+    }
+    catch (tf::TransformException ex)
+    {
+        ROS_ERROR("%s",ex.what());
+        return;
+    }
+    tf::quaternionMsgToTF(odom.pose.pose.orientation, rotation);
+    base_to_map.setOrigin( tf::Vector3(odom.pose.pose.position.x, odom.pose.pose.position.y, 0) );
+    base_to_map.setRotation(rotation);
+
+    tf::Transform odom_to_map = base_to_map * base_to_odom.inverse();
+    ros::Time ts = ros::Time::now();
+    ros::Duration transform_tolerance(0.1);
+    br_.sendTransform(tf::StampedTransform(odom_to_map, ts+transform_tolerance, "map", "odom"));
+
+    odom_filter_pub_.publish(odom);
 }
 
 
