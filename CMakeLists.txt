@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   cmake_modules
   tf
+  ar_pose
 )
 
 add_definitions(-std=c++11 -g)
@@ -39,7 +40,12 @@ include_directories(
 )
 
 add_executable(ar_process_input_node src/ar_process_input.cpp src/ar_map.cpp)
-add_executable(ekf_localization_node src/ekf_localization_node.cpp src/ekf.cpp)
+add_executable(ekf_localization_node src/ekf_localization_node.cpp src/ekf.cpp src/ar_map.cpp)
+add_executable(test_map src/text_map.cpp)
+
+target_link_libraries(test_map
+  ${catkin_LIBRARIES}
+)
 
 target_link_libraries(ar_process_input_node
   ${catkin_LIBRARIES}

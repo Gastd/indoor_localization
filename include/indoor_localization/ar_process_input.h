@@ -10,6 +10,7 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 // #include <image_transport/image_transport.h>
+#include <Eigen/Dense>
 
 #include <indoor_localization/ar_map.h>
 

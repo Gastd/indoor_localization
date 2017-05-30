@@ -14,10 +14,12 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 // #include <image_transport/image_transport.h>
+#include <ar_pose/ARMarkers.h>
 
 #include <Eigen/Dense>
 
 #include "indoor_localization/kf.h"
+#include "indoor_localization/ar_map.h"
 
 /**
  * @brief Extended Kalman Filter
@@ -27,9 +29,9 @@
  * 
  * *prediction step*
  * p = g(ut,xt-1)
- * Covpt = Gt*Covt-1*Gt.t + Rt
+ * Covpt = Gt*Covt-1*Gt.t + Qt
  * *correction step*
- * Kt = Covpt*Ht.t*(Ht*Covpt*Ht.t + Qt)^-1
+ * Kt = Covpt*Ht.t*(Ht*Covpt*Ht.t + Rt)^-1
  * xt = p + Kt*(zt - h(p))
  * Covt = (I - Kt*Ht)*Covpt
  *  return xt,Covt
@@ -51,10 +53,10 @@ protected:
     void calculateJacobians(Eigen::Vector2d control);
     void publishData();
     void predict(Eigen::Vector2d control);
-    void correct(geometry_msgs::PoseWithCovariance measurement);
+    void correct(uint32_t id, Eigen::Vector2d measurement);
 
     void controlCallback(const nav_msgs::OdometryConstPtr& msg);
-    void measurementCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr&);
+    void measurementCallback(const ar_pose::ARMarkers::ConstPtr&);
 
 private:
     /*ROS*/
@@ -64,9 +66,12 @@ private:
     ros::Publisher odom_filter_pub_;
     tf::TransformBroadcaster br_;
     tf::TransformListener listener_;
+    tf::StampedTransform baseToCamStamped_;
     std::string control_topic_, measur_topic_;
 
+    ros::Time old_time_;
     double dt_;
+    ARMap map_;
 
     /*control[0] = linear velocity, control[1] = angular velocity, control[2] = dt*/
     // Eigen::VectorXd controls_;

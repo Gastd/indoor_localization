@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+    <param name="use_sim_time" value="true" />
+    <node pkg="rosbag" name="rosbag" type="play" args="/home/gastd/workspaces/kinetic/amora_ws/2017-04-22-15-58-37.bag --clock --pause" output="screen" />
+
+    <node name="ar_pose" pkg="ar_pose" type="ar_multi" respawn="false" output="screen">
+        <param name="marker_pattern_list" type="string" value="$(find ar_pose)/data/lara"/>
+        <param name="threshold" type="int" value="100"/>
+        <remap from="/camera/image_raw" to="/camera/image_rect" />
+    </node>
+
+    <include file="$(find aramis_description)/launch/aramis_display.launch" />
+
+    <!-- <node name="pose_interface" pkg="indoor_localization" type="ar_process_input_node" output="screen" /> -->
+    <node name="ekf_localization" pkg="indoor_localization" type="ekf_localization_node" output="screen" />
+    <!-- <node name="test_map" pkg="indoor_localization" type="test_map" output="screen" /> -->
+</launch>
