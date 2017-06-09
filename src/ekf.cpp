@@ -93,14 +93,20 @@ void EKF::measurementCallback(const ar_pose::ARMarkers::ConstPtr& pose_msg)
             tf::pointMsgToTF(marker_it->pose.pose.position, marker_position_camera_frame);
 
             marker_position_base_frame = baseToCamStamped_ * marker_position_camera_frame;
-            // ROS_INFO_STREAM("---------------- measurement -----------------");
-            // ROS_INFO_STREAM("X = " << marker_position_base_frame.getX());
-            // ROS_INFO_STREAM("Y = " << marker_position_base_frame.getY());
-            // ROS_INFO_STREAM("Z = " << marker_position_base_frame.getZ() << std::endl);
+            ROS_INFO_STREAM("---------------- measurement -----------------");
+            ROS_INFO_STREAM("X = " << marker_position_base_frame.getX());
+            ROS_INFO_STREAM("Y = " << marker_position_base_frame.getY());
+            ROS_INFO_STREAM("Z = " << marker_position_base_frame.getZ());
             double dx = marker_position_base_frame.getX();
             double dy = marker_position_base_frame.getY();
-            measurement(0) = bearing(dx,dy);  // bearing
-            measurement(1) = range(dx,dy);  // range
+            measurement(0) = range(dx,dy);  // range
+            measurement(1) = bearing(dx,dy);  // bearing
+            float dev = (100. - static_cast<float>(marker_it->confidence))/100.;
+            ROS_INFO_STREAM("deviation = " << dev*dev << std::endl);
+            
+            process_noise_covar_ << dev*dev, 0,
+                                    0, dev*dev;
+
             correct(marker_it->id, measurement);
         }
     }
@@ -118,20 +124,20 @@ void EKF::initFilter()
     alpha2_ = 1e-2;
     alpha3_ = 1e-2;
     alpha4_ = 1e-2;
-    motion_noise_ = Eigen::MatrixXd::Zero(2,2);
+    motion_noise_ = Eigen::MatrixXd::Identity(2,2);
+    motion_noise_ *= 1e-3;
 
     // Kalman filter Rt, 
     double std_x = 1e-1;
     double std_y = 1e-1;
     double std_yaw = 1e-1;
-    process_noise_covar_ << std_x*std_x, 0, 0,
-                            0, std_y*std_y, 0,
-                            0,0,std_yaw*std_yaw;
+    process_noise_covar_ << std_x*std_x, 0,
+                            0, std_y*std_y;
 
     /*Initialize Jacobians*/
     motion_jacob_ = Eigen::MatrixXd::Zero(3,3);
     motion_noise_jacob_ = Eigen::MatrixXd::Zero(3,2);
-    measurement_jacob_ = Eigen::MatrixXd::Zero(3,3);
+    measurement_jacob_ = Eigen::MatrixXd::Zero(2,3);
 
     cy_ = cyw_ = 0;
     sy_ = syw_ = 0;
@@ -162,29 +168,12 @@ void EKF::calculateJacobians(Eigen::Vector2d control)
 
     motion_noise_jacob_(2,1) = dt_;
 
-    motion_noise_(0,0) = 1e-3;
-    motion_noise_(1,0) = 0;
-    motion_noise_(0,1) = 0;
-    motion_noise_(1,1) = 1e-2;
-
-    measurement_jacob_(0,0) = 1;
-    measurement_jacob_(1,0) = 0;
-    measurement_jacob_(2,0) = 0;
-
-    measurement_jacob_(0,1) = 0;
-    measurement_jacob_(1,1) = 1;
-    measurement_jacob_(2,1) = 0;
-
-    measurement_jacob_(0,2) = 0;
-    measurement_jacob_(1,2) = 0;
-    measurement_jacob_(2,2) = 1;
-
     // Deal with singularities in v_w using L'Hopital's Rule
     if((fabs(w) > 1e-5))
     {
         double v_w = v/w;
-        motion_jacob_(0,2) = -v_w*cos(yaw) + v_w*cos(yaw + w*dt_);
-        motion_jacob_(1,2) = -v_w*sin(yaw) + v_w*sin(yaw + w*dt_);
+        motion_jacob_(0,2) = -v_w*cy_ + v_w*cyw_;
+        motion_jacob_(1,2) = -v_w*sy_ + v_w*syw_;
 
         motion_noise_jacob_(0,0) = (-sy_ + syw_)/w;
         motion_noise_jacob_(1,0) = ( cy_ - cyw_)/w;
@@ -219,8 +208,8 @@ void EKF::predict(Eigen::Vector2d control)
     if((fabs(w) > 1e-5))
     {
         double v_w = v/w;
-        delta_state(0) = -v_w*sin(yaw) + v_w*sin(yaw + w*dt_);
-        delta_state(1) =  v_w*cos(yaw) - v_w*cos(yaw + w*dt_);
+        delta_state(0) = -v_w*sy_ + v_w*syw_;
+        delta_state(1) =  v_w*cy_ - v_w*cyw_;
         delta_state(2) =  w*dt_;
     }
     else
@@ -252,36 +241,62 @@ void EKF::correct(uint32_t measurement_id, Eigen::Vector2d measurement)
     // Kt = Covpt*Ht.t*(Ht*Covpt*Ht.t + Qt)^-1
     // xt = p + Kt*(zt - h(p))
     // Covt = (I - Kt*Ht)*Covpt
-
     Eigen::Vector2d state_measurement;
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
-    std::vector<double> m = map_.get(measurement_id);
-    double dx = state_(0) - m[0];
-    double dy = state_(1) - m[1];
-    state_measurement(0) = bearing(dx,dy);
-    state_measurement(1) = range(dx,dy);
+    std::vector<double> m = map_.get(measurement_id+1);
+    dx_ = m[0] - state_(0);
+    dy_ = m[1] - state_(1);
+    ROS_INFO_STREAM("id " << measurement_id << " m0: " << m[0] << " m1 " << m[1]);
+    state_measurement(0) = range(dx_,dy_);
+    state_measurement(1) = bearing(dx_,dy_) - state_(2);
+    
+    /*Calculate Measurement Jacobian*/
+    measurement_jacob_(0,0) = -(dx_)/(range(dx_,dy_));
+    measurement_jacob_(1,0) =  (dy_)/(dx_*dx_+dy_*dy_);
+    // measurement_jacob_(2,0) = 0;
 
-    // state_measurement = state_;
+    measurement_jacob_(0,1) = -(dy_)/(range(dx_,dy_));
+    measurement_jacob_(1,1) = -(dx_)/(dx_*dx_+dy_*dy_);
+    // measurement_jacob_(2,1) = 0;
 
-    // measurement(0) = measurement_msg.pose.position.x;
-    // measurement(1) = measurement_msg.pose.position.y;
-    // measurement(2) = tf::getYaw(measurement_msg.pose.orientation);
+    measurement_jacob_(0,2) = 0;
+    measurement_jacob_(1,2) = -1;
+    // measurement_jacob_(2,2) = 1;
 
-    // // measurement test, euclidean test
-    // if( fabs(state_(0) - measurement(0)) > 1. || 
-    //     fabs(state_(1) - measurement(1)) > 1. ||
-    //     fabs(state_(2) - measurement(2)) > 1.  )
-    //     return;
 
+
+    ROS_INFO("------- Measurement State ----------1");
+    // ROS_INFO_STREAM("measurement_jacob_: \n" << measurement_jacob_);
+    // ROS_INFO_STREAM("cov_state_: \n" << cov_state_);
+    // ROS_INFO_STREAM("process_noise_covar_: \n" << process_noise_covar_);
     Eigen::MatrixXd hcovhq = measurement_jacob_ * cov_state_ * measurement_jacob_.transpose() + process_noise_covar_;
     Eigen::MatrixXd kalman_gain = cov_state_ * measurement_jacob_.transpose() * hcovhq.inverse();
 
+    /*Mahalanobis*/
+    Eigen::MatrixXd Pk = measurement - state_measurement;
+    // ROS_INFO_STREAM("Pk " << Pk);
+    // ROS_INFO_STREAM("process_noise_covar_ " << process_noise_covar_.rows() << "x" << process_noise_covar_.cols());
+    // ROS_INFO_STREAM("measurement_jacob_ " << measurement_jacob_.rows() <<"x"<< measurement_jacob_.cols());
+    // ROS_INFO_STREAM("Pk " << Pk.rows() << "x"<< Pk.cols());
+    // ROS_INFO_STREAM("(measurement_jacob_*state_) " << (measurement_jacob_*state_).rows() << "x"<< (measurement_jacob_*state_).cols());
+    // Eigen::MatrixXd cov_mahala = process_noise_covar_ - ((measurement_jacob_*state_) * Pk * (measurement_jacob_*state_).transpose());
+    Eigen::MatrixXd cov_mahala = hcovhq;
+    Eigen::MatrixXd mahala = (Pk.transpose() * (cov_mahala).inverse() * Pk);
+
+    if(mahala(0) > 5.991)
+    {
+        return;
+    }
+
+    ROS_INFO_STREAM("mahala " << mahala);
+    ROS_INFO_STREAM("cov_mahala " << cov_mahala);
     state_ += kalman_gain * (measurement - state_measurement);
     cov_state_ = (I - kalman_gain * measurement_jacob_)*cov_state_;
     ROS_INFO("------- Measurement State ----------");
-    // ROS_INFO_STREAM("measurement: \n" << measurement);
-    // ROS_INFO_STREAM("corrected State: \n" << state_);
-    // ROS_INFO_STREAM("\n" << cov_state_);
+    ROS_INFO_STREAM("kalman_gain: \n" << kalman_gain);
+    ROS_INFO_STREAM("measurement: \n" << measurement);
+    ROS_INFO_STREAM("corrected State: \n" << state_);
+    ROS_INFO_STREAM("covariance: \n" << cov_state_);
 }
 
 void EKF::run()

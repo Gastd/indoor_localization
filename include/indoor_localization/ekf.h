@@ -82,10 +82,13 @@ private:
 
     /*State = (x; y; theta)*/
     Eigen::Vector3d state_, state1_;
-    Eigen::Matrix3d cov_state_, process_noise_covar_;
+    Eigen::Matrix3d cov_state_;
+    Eigen::Matrix2d process_noise_covar_;
 
     /*Models Jacobians*/
     Eigen::MatrixXd motion_jacob_, motion_noise_jacob_, measurement_jacob_;
+
+    double dx_, dy_;
 
     /*Scale parameters*/
     double alpha1_,alpha2_,alpha3_,alpha4_;
