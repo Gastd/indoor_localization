@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="ar_pose" pkg="ar_pose" type="ar_multi" respawn="false" output="screen">
+        <param name="marker_pattern_list" type="string" value="$(find ar_pose)/data/lara"/>
+        <param name="threshold" type="int" value="100"/>
+        <remap from="/camera/image_raw" to="/camera/image_rect" />
+    </node>
+
+    <!-- <include file="$(find aramis_description)/launch/aramis_display.launch" /> -->
+
+    <!-- <node name="pose_interface" pkg="indoor_localization" type="ar_process_input_node" output="screen" /> -->
+    <node name="ekf_localization" pkg="indoor_localization" type="ekf_localization_node" output="screen" />
+    <!-- <node name="test_map" pkg="indoor_localization" type="test_map" output="screen" /> -->
+</launch>
